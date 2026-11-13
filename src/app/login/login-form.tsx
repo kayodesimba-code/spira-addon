@@ -3,9 +3,10 @@
 import { LogIn } from "lucide-react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import { Button, Field, Notice } from "@/components/ui";
 import { api, errorMessage } from "@/lib/client/api";
+import { readAuthLink } from "@/lib/client/auth-link";
 
 function safeNext(value: string | null): string {
   if (!value || !value.startsWith("/") || value.startsWith("//") || value.startsWith("/\\")) return "/";
@@ -18,6 +19,20 @@ export function LoginForm() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    const result = readAuthLink(window.location.search, window.location.hash);
+    if (result.kind === "session") {
+      const q = new URLSearchParams({ access_token: result.accessToken });
+      if (result.type) q.set("type", result.type);
+      window.location.replace(`/auth/set-password?${q.toString()}`);
+      return;
+    }
+    if (result.kind === "error") {
+      setError(result.message);
+      window.history.replaceState(null, "", window.location.pathname + window.location.search);
+    }
+  }, []);
 
   const submit = async (event: FormEvent) => {
     event.preventDefault();

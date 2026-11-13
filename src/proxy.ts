@@ -4,12 +4,14 @@ import { SESSION_COOKIE, verifySessionToken } from "@/lib/server/session";
 const PUBLIC_PATHS = new Set([
   "/login",
   "/signup",
+  "/auth/callback",
   "/auth/set-password",
   "/api/auth/login",
   "/api/auth/signup",
   "/api/auth/set-password",
   "/api/healthz",
 ]);
+
 /** Shared reports: the page checks the link's signature and shows that one report, read-only. */
 const PUBLIC_PREFIX = "/r/";
 

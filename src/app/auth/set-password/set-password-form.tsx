@@ -1,17 +1,11 @@
 "use client";
 
 import { KeyRound } from "lucide-react";
+import Link from "next/link";
 import { useEffect, useState, type FormEvent } from "react";
 import { Button, Field, Notice } from "@/components/ui";
 import { api, errorMessage } from "@/lib/client/api";
-
-/** Read the access_token Supabase puts in the URL hash after the invite / recovery link. */
-function tokenFromLocation(): string | null {
-  if (typeof window === "undefined") return null;
-  const hash = new URLSearchParams(window.location.hash.replace(/^#/, ""));
-  const query = new URLSearchParams(window.location.search);
-  return hash.get("access_token") || query.get("access_token");
-}
+import { readAuthLink } from "@/lib/client/auth-link";
 
 export function SetPasswordForm() {
   const [accessToken, setAccessToken] = useState<string | null>(null);
@@ -21,15 +15,18 @@ export function SetPasswordForm() {
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
-    const token = tokenFromLocation();
-    setAccessToken(token);
-    if (!token) {
-      setError("Open the verification link from your email. This page needs that link to set your password.");
+    const result = readAuthLink(window.location.search, window.location.hash);
+    if (result.kind === "session") {
+      setAccessToken(result.accessToken);
+      window.history.replaceState(null, "", window.location.pathname);
+      return;
     }
-    // Drop secrets from the address bar after we read them.
-    if (token && window.location.hash) {
-      window.history.replaceState(null, "", window.location.pathname + window.location.search);
+    if (result.kind === "error") {
+      setError(result.message);
+      window.history.replaceState(null, "", window.location.pathname);
+      return;
     }
+    setError("Open the verification link from your email. This page needs that link to set your password.");
   }, []);
 
   const submit = async (event: FormEvent) => {
@@ -52,6 +49,13 @@ export function SetPasswordForm() {
   return (
     <form onSubmit={submit} className="surface flex flex-col gap-4 p-6">
       {error && <Notice tone="danger">{error}</Notice>}
+      {!accessToken && (
+        <p className="text-center text-sm text-slate-600 dark:text-zinc-400">
+          <Link href="/signup" className="font-medium text-slate-900 underline-offset-2 hover:underline dark:text-white">
+            Request a new link
+          </Link>
+        </p>
+      )}
       <Field label="Password">
         {(props) => (
           <input

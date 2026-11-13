@@ -5,6 +5,7 @@ import {
   inviteSupabaseUser,
   loginRateLimited,
   recordFailedLogin,
+  sendPasswordSetupEmail,
   supabaseInviteConfigured,
 } from "@/lib/server/auth";
 import { handler, jsonError, ok, parseBody } from "@/lib/server/http";
@@ -36,10 +37,14 @@ export const POST = handler(
       return jsonError(429, "Too many attempts. Wait 15 minutes and try again.");
     }
     const { email } = await parseBody(request, schema);
+    // Land on set-password after Supabase verifies the email link.
     const redirectTo = `${appOrigin(headerList, request.url)}/auth/set-password`;
     try {
       const result = await inviteSupabaseUser(email, redirectTo);
-      if (!result.ok) {
+      if (!result.ok && result.reason === "exists") {
+        // Incomplete / expired invites: send a fresh password-setup (recovery) link to the same screen.
+        await sendPasswordSetupEmail(email, redirectTo);
+      } else if (!result.ok) {
         recordFailedLogin(clientKey);
         return jsonError(409, result.reason);
       }
@@ -50,7 +55,8 @@ export const POST = handler(
     clearFailedLogins(clientKey);
     return ok({
       ok: true,
-      message: "Check your email for a verification link. Open it to create your password.",
+      message:
+        "Check your email for the link. Open it once (don’t preview it in Gmail) — you’ll land on Create password. If the old link expired, submit this form again for a fresh one.",
     });
   },
   { public: true },

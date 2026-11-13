@@ -81,9 +81,24 @@ export async function inviteSupabaseUser(email: string, redirectTo: string): Pro
   if (response.ok) return { ok: true };
   const detail = await response.text().catch(() => "");
   if (response.status === 422 || /already|registered|exists/i.test(detail)) {
-    return { ok: false, reason: "That email already has an account. Sign in instead, or use Reset password if you forgot it." };
+    return { ok: false, reason: "exists" };
   }
   throw new Error(`Supabase could not send the invite (HTTP ${response.status})${detail ? `: ${detail.slice(0, 200)}` : ""}`);
+}
+
+/** Password-recovery email that lands on redirectTo so the user can create / reset their password. */
+export async function sendPasswordSetupEmail(email: string, redirectTo: string): Promise<void> {
+  const c = supabaseAuthConfig();
+  if (!c) throw new Error("Supabase Auth is not configured.");
+  const response = await authFetch("recover", {
+    method: "POST",
+    apiKey: c.anonKey,
+    body: { email: email.trim().toLowerCase(), redirect_to: redirectTo },
+  });
+  if (!response.ok) {
+    const detail = await response.text().catch(() => "");
+    throw new Error(`Supabase could not send the password link (HTTP ${response.status})${detail ? `: ${detail.slice(0, 200)}` : ""}`);
+  }
 }
 
 /** Set password using the access token from the invite / recovery email link, then return the user. */
