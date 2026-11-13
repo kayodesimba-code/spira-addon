@@ -202,8 +202,9 @@ describe("session tokens", () => {
     const token = await createSessionToken({
       sub: "11111111-2222-3333-4444-555555555555",
       email: "qa@example.com",
-      role: "admin",
+      role: "member",
     });
     expect(await verifySessionToken(token)).toBe(true);
   });
 });
+

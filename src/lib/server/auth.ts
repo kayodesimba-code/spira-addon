@@ -1,7 +1,7 @@
 import "server-only";
 import { createHash, timingSafeEqual } from "node:crypto";
 import { cookies } from "next/headers";
-import { SESSION_COOKIE, verifySessionToken, type SessionUser } from "./session";
+import { SESSION_COOKIE, sessionUserFromIdentity, verifySessionToken, type SessionUser } from "./session";
 
 export function passwordMatches(candidate: string): boolean {
   const expected = process.env.APP_PASSWORD;
@@ -64,7 +64,7 @@ export async function verifySupabasePassword(email: string, password: string): P
   const raw = (await response.json()) as { user?: { id?: string; email?: string | null } };
   const id = raw.user?.id?.trim();
   if (!id) return null;
-  return { sub: id, email: raw.user?.email?.trim() || email.trim(), role: "admin" };
+  return sessionUserFromIdentity(id, raw.user?.email?.trim() || email.trim());
 }
 
 /** Send a Supabase invite email. The user opens the link and sets their password on /auth/set-password. */
@@ -119,7 +119,7 @@ export async function setSupabasePasswordWithToken(accessToken: string, password
   const raw = (await response.json()) as { id?: string; email?: string | null };
   const id = raw.id?.trim();
   if (!id) return null;
-  return { sub: id, email: raw.email?.trim() || null, role: "admin" };
+  return sessionUserFromIdentity(id, raw.email?.trim() || null);
 }
 
 const WINDOW_MS = 15 * 60 * 1000;

@@ -14,6 +14,7 @@ import {
   createSessionToken,
   SESSION_COOKIE,
   SESSION_TTL_SECONDS,
+  sessionUserFromIdentity,
   type SessionUser,
 } from "@/lib/server/session";
 
@@ -49,9 +50,9 @@ export const POST = handler(
         user = await verifySupabasePassword(email, password);
       } else if (!email && process.env.APP_PASSWORD && passwordMatches(password)) {
         // Legacy team password / smoke scripts (no email).
-        user = { sub: "admin", email: null, role: "admin" };
+        user = sessionUserFromIdentity("admin", null);
       } else if (email && !supabaseAuthConfigured() && process.env.APP_PASSWORD && passwordMatches(password)) {
-        user = { sub: "admin", email, role: "admin" };
+        user = sessionUserFromIdentity("admin", email);
       }
     } catch (error) {
       recordFailedLogin(clientKey);

@@ -1,4 +1,5 @@
 import { jwtVerify, SignJWT } from "jose";
+import { resolveAppRole, type AppRole } from "@/lib/domain/roles";
 
 export const SESSION_COOKIE = "srs_session";
 export const SESSION_TTL_SECONDS = 12 * 60 * 60;
@@ -8,7 +9,7 @@ export type SessionUser = {
   /** Supabase user id, or "admin" for the legacy team-password fallback. */
   sub: string;
   email: string | null;
-  role: "admin";
+  role: AppRole;
 };
 
 function secretKey(): Uint8Array | null {
@@ -26,7 +27,17 @@ export function authConfigured(): boolean {
   return supabase || Boolean(process.env.APP_PASSWORD);
 }
 
-export async function createSessionToken(user: SessionUser = { sub: "admin", email: null, role: "admin" }): Promise<string> {
+export function sessionUserFromIdentity(sub: string, email: string | null): SessionUser {
+  return {
+    sub,
+    email,
+    role: resolveAppRole({ sub, email }),
+  };
+}
+
+export async function createSessionToken(
+  user: SessionUser = sessionUserFromIdentity("admin", null),
+): Promise<string> {
   const key = secretKey();
   if (!key) throw new Error("SESSION_SECRET is not configured.");
   const jwt = new SignJWT({ role: user.role, ...(user.email ? { email: user.email } : {}) })
@@ -49,7 +60,8 @@ export async function readSessionUser(token: string | undefined | null): Promise
     const sub = typeof payload.sub === "string" ? payload.sub.trim() : "";
     if (!sub) return null;
     const email = typeof payload.email === "string" ? payload.email : null;
-    return { sub, email, role: "admin" };
+    // Re-resolve from identity so hard-coded superadmins stay correct even on older cookies.
+    return { sub, email, role: resolveAppRole({ sub, email }) };
   } catch {
     return null;
   }

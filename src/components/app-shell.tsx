@@ -29,17 +29,18 @@ import { Toaster } from "sonner";
 import { api } from "@/lib/client/api";
 import { INITIAL_SYNC, storeSync } from "@/lib/client/store-sync";
 import { Logo } from "./brand";
+import { useIsSuperadmin } from "./session-context";
 import { useSettings } from "./settings-context";
 
 /** Compare / Drafts / Completed / Notes / Progress stay reachable by URL; hidden from nav. */
-const NAV: Array<{ href: string; label: string; icon: LucideIcon; match: (p: string) => boolean }> = [
+const NAV: Array<{ href: string; label: string; icon: LucideIcon; match: (p: string) => boolean; superadmin?: boolean }> = [
   { href: "/sit-build", label: "SIT build", icon: ClipboardList, match: (p) => p.startsWith("/sit-build") },
   { href: "/uat-build", label: "UAT build", icon: ClipboardList, match: (p) => p.startsWith("/uat-build") || p.startsWith("/week") },
   { href: "/matrix", label: "Prod Testing", icon: Grid3x3, match: (p) => p.startsWith("/matrix") },
   { href: "/defects", label: "Defects", icon: Bug, match: (p) => p.startsWith("/defects") },
   { href: "/reports", label: "Reports", icon: FileChartColumn, match: (p) => p.startsWith("/reports") },
-  { href: "/activity", label: "Activity", icon: Activity, match: (p) => p.startsWith("/activity") },
-  { href: "/settings", label: "Settings", icon: Settings2, match: (p) => p.startsWith("/settings") },
+  { href: "/activity", label: "Activity", icon: Activity, match: (p) => p.startsWith("/activity"), superadmin: true },
+  { href: "/settings", label: "Settings", icon: Settings2, match: (p) => p.startsWith("/settings"), superadmin: true },
 ];
 
 function subscribeToTheme(onChange: () => void) {
@@ -192,9 +193,10 @@ function StorageStatus({ rail }: { rail?: Rail }) {
 }
 
 function NavLinks({ pathname, onNavigate, layoutId, rail }: { pathname: string; onNavigate?: () => void; layoutId: string; rail?: Rail }) {
+  const superadmin = useIsSuperadmin();
   return (
     <nav aria-label="Main" className="flex flex-col gap-0.5">
-      {NAV.map((item) => {
+      {NAV.filter((item) => !item.superadmin || superadmin).map((item) => {
         const active = item.match(pathname);
         const Icon = item.icon;
         const label = item.label;
@@ -268,6 +270,7 @@ function SidebarContent({
   collapse?: { collapsed: boolean; toggle: () => void };
 }) {
   const rail = !!collapse;
+  const superadmin = useIsSuperadmin();
   const CollapseIcon = collapse?.collapsed ? PanelLeftOpen : PanelLeftClose;
   return (
     <div className={clsx("flex h-full flex-col gap-6 px-3 py-5", rail && "rail:px-2.5")}>
@@ -294,9 +297,11 @@ function SidebarContent({
       </div>
       <NavLinks pathname={pathname} onNavigate={onNavigate} layoutId={layoutId} rail={rail} />
       <div className="mt-auto flex flex-col gap-3">
-        <div className={clsx("well py-1.5", rail && "rail:py-1")}>
-          <ConnectionStatus rail={rail} />
-        </div>
+        {superadmin && (
+          <div className={clsx("well py-1.5", rail && "rail:py-1")}>
+            <ConnectionStatus rail={rail} />
+          </div>
+        )}
         <div className="flex flex-col gap-0.5">
           <ThemeToggle rail={rail} />
           <SignOutButton rail={rail} />
