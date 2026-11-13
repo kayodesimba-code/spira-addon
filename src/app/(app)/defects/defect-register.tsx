@@ -1,6 +1,17 @@
 "use client";
 
-import { ArrowLeft, Bookmark, CheckCircle2, ExternalLink, FolderPlus, LockOpen, RefreshCw, Search, Trash2 } from "lucide-react";
+import clsx from "clsx";
+import {
+  ArrowLeft,
+  Bookmark,
+  CheckCircle2,
+  ExternalLink,
+  FolderPlus,
+  LockOpen,
+  RefreshCw,
+  Search,
+  Trash2,
+} from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { useSettings } from "@/components/settings-context";
@@ -39,8 +50,27 @@ const FILTERS: { id: IncidentOpenFilter; label: string }[] = [
 const SORTS: { id: IncidentSort; label: string }[] = [
   { id: "id", label: "Newest id" },
   { id: "created", label: "Newest created" },
-  { id: "name", label: "Name" },
+  { id: "name", label: "Name A–Z" },
 ];
+
+type Tone = "neutral" | "brand" | "success" | "warning" | "danger";
+
+function statusTone(status: string | null, open: boolean): Tone {
+  const s = (status ?? "").toLowerCase();
+  if (!open || /closed|done|resolved|fixed|rejected|duplicate|deferred/.test(s)) return "success";
+  if (/ready\s*for\s*qa|in\s*qa|qa/.test(s)) return "brand";
+  if (/in\s*dev|in\s*progress|progress|assigned|develop/.test(s)) return "warning";
+  if (/to\s*do|new|open|reopen|triage/.test(s)) return "danger";
+  return open ? "warning" : "success";
+}
+
+function severityTone(severity: string | null): Tone {
+  const s = (severity ?? "").toLowerCase();
+  if (/1|critical|blocker|highest/.test(s)) return "danger";
+  if (/2|high/.test(s)) return "warning";
+  if (/3|medium/.test(s)) return "brand";
+  return "neutral";
+}
 
 function SpiraIncidentLink({
   href,
@@ -52,18 +82,109 @@ function SpiraIncidentLink({
   className?: string;
 }) {
   const label = `IN:${incidentId}`;
-  if (!href) return <span className={className}>{label}</span>;
+  if (!href) return <span className={clsx("font-mono tabular-nums", className)}>{label}</span>;
   return (
     <a
       href={href}
       target="_blank"
       rel="noreferrer noopener"
-      className={`inline-flex items-center gap-1 font-medium text-brand-700 underline-offset-2 hover:underline dark:text-brand-300 ${className ?? ""}`}
+      className={clsx(
+        "inline-flex items-center gap-1 font-mono text-sm font-semibold tabular-nums text-brand-700 underline-offset-2 hover:underline dark:text-brand-300",
+        className,
+      )}
       title={`Open ${label} in Spira`}
+      onClick={(e) => e.stopPropagation()}
     >
       {label}
-      <ExternalLink className="size-3 shrink-0" aria-hidden />
+      <ExternalLink className="size-3 shrink-0 opacity-70" aria-hidden />
     </a>
+  );
+}
+
+function MetaDot() {
+  return <span className="text-slate-300 dark:text-zinc-600" aria-hidden>·</span>;
+}
+
+function IncidentMeta({ row }: { row: ReportIncident }) {
+  const bits = [
+    row.severity,
+    row.priority,
+    row.detectedRelease ? `Detected ${row.detectedRelease}` : null,
+    row.createdAt ? formatDateTime(row.createdAt) : null,
+  ].filter(Boolean) as string[];
+  if (bits.length === 0) return null;
+  return (
+    <p className="mt-1 flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-xs text-slate-500 dark:text-zinc-400">
+      {bits.map((bit, i) => (
+        <span key={`${bit}-${i}`} className="inline-flex items-center gap-1.5">
+          {i > 0 && <MetaDot />}
+          {i === 0 && row.severity ? (
+            <span className="inline-flex items-center gap-1.5">
+              <span
+                className={clsx(
+                  "size-1.5 rounded-full",
+                  severityTone(row.severity) === "danger" && "bg-red-500",
+                  severityTone(row.severity) === "warning" && "bg-amber-500",
+                  severityTone(row.severity) === "brand" && "bg-brand-500",
+                  severityTone(row.severity) === "neutral" && "bg-slate-400",
+                )}
+                aria-hidden
+              />
+              {bit}
+            </span>
+          ) : (
+            bit
+          )}
+        </span>
+      ))}
+    </p>
+  );
+}
+
+function StatusSelect({
+  row,
+  statuses,
+  busy,
+  later,
+  onForLater,
+  onStatus,
+}: {
+  row: ReportIncident;
+  statuses: IncidentStatusOption[];
+  busy: boolean;
+  later: boolean;
+  onForLater: () => void;
+  onStatus: (status: IncidentStatusOption) => void;
+}) {
+  return (
+    <select
+      className="input h-8 w-auto min-w-[8.5rem] py-0 text-xs"
+      aria-label={`Status for IN:${row.incidentId}`}
+      disabled={busy || statuses.length === 0}
+      value={row.statusId && statuses.some((s) => s.id === row.statusId) ? String(row.statusId) : ""}
+      onClick={(e) => e.stopPropagation()}
+      onChange={(e) => {
+        const value = e.target.value;
+        if (value === FOR_LATER_SELECT) {
+          onForLater();
+          return;
+        }
+        const id = Number(value);
+        const status = statuses.find((s) => s.id === id);
+        if (status) onStatus(status);
+      }}
+    >
+      <option value="" disabled>
+        {statuses.length ? "Set status…" : "No statuses"}
+      </option>
+      <option value={FOR_LATER_SELECT}>{later ? "Keep For later" : "For later (app only)"}</option>
+      {statuses.map((s) => (
+        <option key={s.id} value={s.id}>
+          {s.name}
+          {s.open ? "" : " (closed)"}
+        </option>
+      ))}
+    </select>
   );
 }
 
@@ -72,7 +193,8 @@ export function DefectRegister() {
   const projectId = settings?.projectId ?? null;
   const configured = spira?.configured === true;
   const siteUrl = spira?.siteUrl ?? null;
-  const incidentUrl = (incidentId: number) => (siteUrl && projectId !== null ? `${siteUrl}/${projectId}/Incident/${incidentId}.aspx` : null);
+  const incidentUrl = (incidentId: number) =>
+    siteUrl && projectId !== null ? `${siteUrl}/${projectId}/Incident/${incidentId}.aspx` : null;
 
   const [incidents, setIncidents] = useState<ReportIncident[] | null>(null);
   const [complete, setComplete] = useState(true);
@@ -131,6 +253,16 @@ export function DefectRegister() {
     if (!incidents) return [];
     return sortIncidents(filterIncidents(incidents, filter, query, later), sort);
   }, [incidents, filter, query, sort, later]);
+
+  const counts = useMemo(() => {
+    if (!incidents) return { all: 0, open: 0, closed: 0, forLater: 0 };
+    return {
+      all: incidents.length,
+      open: incidents.filter((i) => i.open).length,
+      closed: incidents.filter((i) => !i.open).length,
+      forLater: incidents.filter((i) => later.has(i.incidentId)).length,
+    };
+  }, [incidents, later]);
 
   const markForLater = (incidentId: number, on: boolean) => {
     if (projectId === null) return;
@@ -236,7 +368,6 @@ export function DefectRegister() {
 
   const bucketIncidentKey = useMemo(() => bucketRows.map((r) => r.incidentId).join(","), [bucketRows]);
 
-  // Prefetch Spira descriptions so each card opens with an editable text box.
   useEffect(() => {
     if (!activeBucket || projectId === null || !bucketIncidentKey) return;
     for (const id of bucketIncidentKey.split(",").map(Number).filter((n) => n > 0)) {
@@ -261,6 +392,15 @@ export function DefectRegister() {
     }
   };
 
+  const toggleSelected = (incidentId: number) => {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(incidentId)) next.delete(incidentId);
+      else next.add(incidentId);
+      return next;
+    });
+  };
+
   const toggleAllVisible = (on: boolean) => {
     setSelected((prev) => {
       const next = new Set(prev);
@@ -282,23 +422,24 @@ export function DefectRegister() {
 
   if (activeBucket) {
     return (
-      <div className="flex flex-col gap-4">
-        <div className="flex flex-wrap items-center gap-2">
+      <div className="flex flex-col gap-5">
+        <div className="flex flex-wrap items-center gap-3">
           <Button size="sm" variant="ghost" icon={ArrowLeft} onClick={() => setActiveBucketId(null)}>
             Back to register
           </Button>
-          <h2 className="text-lg font-semibold tracking-tight">{activeBucket.name}</h2>
-          <Badge tone="neutral">{bucketRows.length} defects</Badge>
+          <div className="min-w-0 flex-1">
+            <h2 className="text-lg font-semibold tracking-tight">{activeBucket.name}</h2>
+            <p className="text-sm text-slate-500 dark:text-zinc-400">
+              {bucketRows.length} defect{bucketRows.length === 1 ? "" : "s"} · edit descriptions, then close or reopen in Spira
+            </p>
+          </div>
         </div>
-        <p className="text-sm text-slate-600 dark:text-zinc-400">
-          Edit each Spira description, then mark open or closed. Close/open writes straight to Spira.
-        </p>
         <div className="flex flex-wrap gap-2">
           <Button size="sm" icon={CheckCircle2} busy={bulkBusy} disabled={bulkBusy || !closedStatus} onClick={() => void bulkStatus(false)}>
-            Mark all closed in Spira
+            Mark all closed
           </Button>
           <Button size="sm" icon={LockOpen} busy={bulkBusy} disabled={bulkBusy || !openStatus} onClick={() => void bulkStatus(true)}>
-            Mark all open in Spira
+            Mark all open
           </Button>
           <Button
             size="sm"
@@ -320,62 +461,38 @@ export function DefectRegister() {
             These ids are not in the loaded list (refresh the register), or they were removed from Spira.
           </EmptyState>
         ) : (
-          <div className="flex flex-col gap-4">
+          <div className="flex flex-col gap-3">
             {bucketRows.map((row) => {
               const busy = busyId === row.incidentId || bulkBusy;
               const draft = descDrafts[row.incidentId];
+              const parked = later.has(row.incidentId);
               return (
-                <div key={row.incidentId} className="rounded-xl border border-slate-200 p-4 dark:border-white/10">
+                <article
+                  key={row.incidentId}
+                  className="rounded-2xl border border-slate-200/80 bg-white p-4 shadow-sm shadow-slate-900/[0.03] dark:border-white/10 dark:bg-white/[0.03] dark:shadow-none"
+                >
                   <div className="flex flex-wrap items-start justify-between gap-3">
                     <div className="min-w-0">
-                      <p className="font-medium">
+                      <div className="flex flex-wrap items-center gap-2">
                         <SpiraIncidentLink href={incidentUrl(row.incidentId)} incidentId={row.incidentId} />
-                        <span className="text-slate-700 dark:text-zinc-200"> · {row.name}</span>
-                      </p>
-                      <p className="mt-1 text-xs text-slate-500">
-                        {row.severity ?? "—"} · {row.priority ?? "—"} · {row.detectedRelease ?? "no release"}
-                      </p>
-                    </div>
-                    <div className="flex flex-wrap gap-1.5">
-                      <Badge tone={row.open ? "warning" : "success"}>{row.status ?? (row.open ? "Open" : "Closed")}</Badge>
-                      {later.has(row.incidentId) && <Badge tone="brand">For later</Badge>}
+                        <Badge tone={statusTone(row.status, row.open)}>{row.status ?? (row.open ? "Open" : "Closed")}</Badge>
+                        {parked && <Badge tone="brand">For later</Badge>}
+                      </div>
+                      <h3 className="mt-1.5 text-[15px] leading-snug font-medium text-slate-900 dark:text-zinc-100">{row.name}</h3>
+                      <IncidentMeta row={row} />
                     </div>
                   </div>
-                  <div className="mt-3 flex flex-wrap gap-2">
-                    <select
-                      className="input w-auto min-w-[9rem]"
-                      aria-label={`Status for IN:${row.incidentId}`}
-                      disabled={busy || statuses.length === 0}
-                      value={row.statusId && statuses.some((s) => s.id === row.statusId) ? String(row.statusId) : ""}
-                      onChange={(e) => {
-                        const value = e.target.value;
-                        if (value === FOR_LATER_SELECT) {
-                          markForLater(row.incidentId, true);
-                          return;
-                        }
-                        const id = Number(value);
-                        const status = statuses.find((s) => s.id === id);
-                        if (status) void applyStatus(row, status.id, status.name);
-                      }}
-                    >
-                      <option value="" disabled>
-                        Choose status…
-                      </option>
-                      <option value={FOR_LATER_SELECT}>For Later (app only)</option>
-                      {statuses.map((s) => (
-                        <option key={s.id} value={s.id}>
-                          {s.name}
-                          {s.open ? "" : " (closed)"}
-                        </option>
-                      ))}
-                    </select>
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      icon={Bookmark}
-                      onClick={() => markForLater(row.incidentId, !later.has(row.incidentId))}
-                    >
-                      {later.has(row.incidentId) ? "Clear For later" : "For later"}
+                  <div className="mt-3 flex flex-wrap items-center gap-2">
+                    <StatusSelect
+                      row={row}
+                      statuses={statuses}
+                      busy={busy}
+                      later={parked}
+                      onForLater={() => markForLater(row.incidentId, true)}
+                      onStatus={(status) => void applyStatus(row, status.id, status.name)}
+                    />
+                    <Button size="sm" variant="ghost" icon={Bookmark} onClick={() => markForLater(row.incidentId, !parked)}>
+                      {parked ? "Clear For later" : "For later"}
                     </Button>
                     {row.open && closedStatus && (
                       <Button size="sm" variant="ghost" icon={CheckCircle2} busy={busy} disabled={busy} onClick={() => void applyStatus(row, closedStatus.id, closedStatus.name)}>
@@ -400,9 +517,9 @@ export function DefectRegister() {
                       Remove from bucket
                     </Button>
                   </div>
-                  <div className="mt-3 flex flex-col gap-2">
-                    <label className="text-sm font-medium text-slate-700 dark:text-zinc-300" htmlFor={`desc-${row.incidentId}`}>
-                      Edit description (Spira)
+                  <div className="mt-4 flex flex-col gap-2 border-t border-slate-100 pt-3 dark:border-white/10">
+                    <label className="text-xs font-semibold tracking-wide text-slate-500 uppercase dark:text-zinc-400" htmlFor={`desc-${row.incidentId}`}>
+                      Spira description
                     </label>
                     {draft === undefined || descLoadingIds.has(row.incidentId) ? (
                       <div className="flex items-center gap-2 text-sm text-slate-500">
@@ -425,7 +542,7 @@ export function DefectRegister() {
                             disabled={busy || draft === descSaved[row.incidentId]}
                             onClick={() => void saveDescription(row.incidentId)}
                           >
-                            Save description to Spira
+                            Save to Spira
                           </Button>
                           <Button
                             size="sm"
@@ -444,13 +561,13 @@ export function DefectRegister() {
                               void loadDescription(row.incidentId, true);
                             }}
                           >
-                            Reload from Spira
+                            Reload
                           </Button>
                         </div>
                       </>
                     )}
                   </div>
-                </div>
+                </article>
               );
             })}
           </div>
@@ -462,60 +579,104 @@ export function DefectRegister() {
   const allVisibleSelected = rows.length > 0 && rows.every((r) => selected.has(r.incidentId));
 
   return (
-    <div className="flex flex-col gap-4">
+    <div className="flex flex-col gap-5">
       {buckets.length > 0 && (
         <div className="flex flex-col gap-2">
-          <p className="text-sm font-medium text-slate-700 dark:text-zinc-300">Saved buckets</p>
+          <p className="text-xs font-semibold tracking-wide text-slate-500 uppercase dark:text-zinc-400">Review buckets</p>
           <div className="flex flex-wrap gap-2">
             {buckets.map((b) => (
               <button
                 key={b.id}
                 type="button"
                 onClick={() => setActiveBucketId(b.id)}
-                className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm hover:border-brand-400 dark:border-white/10 dark:bg-white/5"
+                className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-sm transition hover:border-brand-400 hover:bg-brand-50/50 dark:border-white/10 dark:bg-white/5 dark:hover:border-brand-400/40 dark:hover:bg-brand-500/10"
               >
                 <FolderPlus className="size-3.5 text-slate-400" aria-hidden />
-                {b.name}
-                <span className="text-xs text-slate-500">{b.incidentIds.length}</span>
+                <span className="font-medium">{b.name}</span>
+                <span className="rounded-full bg-slate-100 px-1.5 py-0.5 text-[11px] font-semibold tabular-nums text-slate-600 dark:bg-white/10 dark:text-zinc-300">
+                  {b.incidentIds.length}
+                </span>
               </button>
             ))}
           </div>
         </div>
       )}
 
-      <div className="flex flex-wrap items-end gap-3">
-        <label className="flex min-w-[12rem] flex-1 flex-col gap-1 text-sm">
-          <span className="font-medium text-slate-700 dark:text-zinc-300">Search</span>
-          <input className="input" value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Id, name, or status" aria-label="Search defects" />
-        </label>
-        <label className="flex flex-col gap-1 text-sm">
-          <span className="font-medium text-slate-700 dark:text-zinc-300">Show</span>
-          <select className="input w-auto" value={filter} onChange={(e) => setFilter(e.target.value as IncidentOpenFilter)} aria-label="Open or closed">
-            {FILTERS.map((f) => (
-              <option key={f.id} value={f.id}>
+      <div className="flex flex-col gap-3 rounded-2xl border border-slate-200/80 bg-gradient-to-b from-slate-50/80 to-white p-3 sm:p-4 dark:border-white/10 dark:from-white/[0.04] dark:to-transparent">
+        <div className="flex flex-wrap items-center gap-2" role="tablist" aria-label="Show defects">
+          {FILTERS.map((f) => {
+            const count = counts[f.id];
+            const on = filter === f.id;
+            return (
+              <button
+                key={f.id}
+                type="button"
+                role="tab"
+                aria-selected={on}
+                onClick={() => setFilter(f.id)}
+                className={clsx(
+                  "inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-sm font-medium transition",
+                  on
+                    ? "bg-slate-900 text-white shadow-sm dark:bg-white dark:text-slate-900"
+                    : "bg-white text-slate-600 ring-1 ring-slate-200 hover:bg-slate-50 dark:bg-white/5 dark:text-zinc-300 dark:ring-white/10 dark:hover:bg-white/10",
+                )}
+              >
                 {f.label}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label className="flex flex-col gap-1 text-sm">
-          <span className="font-medium text-slate-700 dark:text-zinc-300">Sort</span>
-          <select className="input w-auto" value={sort} onChange={(e) => setSort(e.target.value as IncidentSort)} aria-label="Sort order">
-            {SORTS.map((s) => (
-              <option key={s.id} value={s.id}>
-                {s.label}
-              </option>
-            ))}
-          </select>
-        </label>
-        <Button icon={RefreshCw} busy={loading} onClick={() => void load()}>
-          Refresh
-        </Button>
+                <span
+                  className={clsx(
+                    "rounded-full px-1.5 py-0.5 text-[11px] font-semibold tabular-nums",
+                    on ? "bg-white/20 text-white dark:bg-slate-900/10 dark:text-slate-800" : "bg-slate-100 text-slate-500 dark:bg-white/10 dark:text-zinc-400",
+                  )}
+                >
+                  {count.toLocaleString()}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+          <label className="relative min-w-0 flex-1">
+            <span className="sr-only">Search defects</span>
+            <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-slate-400" aria-hidden />
+            <input
+              className="input h-10 pl-9"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Search by id, name, or status"
+            />
+          </label>
+          <div className="flex flex-wrap items-center gap-2">
+            <label className="flex items-center gap-2 text-sm text-slate-600 dark:text-zinc-400">
+              <span className="sr-only sm:not-sr-only sm:font-medium">Sort</span>
+              <select
+                className="input h-10 w-auto"
+                value={sort}
+                onChange={(e) => setSort(e.target.value as IncidentSort)}
+                aria-label="Sort order"
+              >
+                {SORTS.map((s) => (
+                  <option key={s.id} value={s.id}>
+                    {s.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <Button icon={RefreshCw} busy={loading} onClick={() => void load()} className="h-10">
+              Refresh
+            </Button>
+          </div>
+        </div>
       </div>
 
       {selected.size > 0 && (
-        <div className="flex flex-wrap items-end gap-2 rounded-xl border border-brand-200 bg-brand-50/60 p-3 dark:border-brand-500/30 dark:bg-brand-500/10">
-          <p className="w-full text-sm font-medium text-slate-800 dark:text-zinc-200">{selected.size} selected</p>
+        <div className="sticky top-2 z-10 flex flex-wrap items-end gap-2 rounded-2xl border border-brand-200 bg-brand-50/90 p-3 shadow-lg shadow-brand-900/5 backdrop-blur dark:border-brand-500/30 dark:bg-brand-500/15">
+          <p className="w-full text-sm font-semibold text-slate-800 dark:text-zinc-100">
+            {selected.size} selected
+            <button type="button" className="ml-2 font-medium text-brand-700 underline-offset-2 hover:underline dark:text-brand-300" onClick={() => setSelected(new Set())}>
+              Clear
+            </button>
+          </p>
           <label className="flex min-w-[12rem] flex-1 flex-col gap-1 text-sm">
             <span className="font-medium">Bucket name</span>
             <input
@@ -528,9 +689,6 @@ export function DefectRegister() {
           </label>
           <Button icon={FolderPlus} onClick={createFromSelection}>
             Create bucket
-          </Button>
-          <Button variant="ghost" onClick={() => setSelected(new Set())}>
-            Clear selection
           </Button>
         </div>
       )}
@@ -566,117 +724,123 @@ export function DefectRegister() {
       )}
 
       {rows.length > 0 && (
-        <div className="overflow-x-auto rounded-xl border border-slate-200 dark:border-white/10">
-          <table className="min-w-full text-left text-sm">
-            <thead className="bg-slate-50 text-xs font-semibold tracking-wide text-slate-600 uppercase dark:bg-white/5 dark:text-zinc-400">
-              <tr>
-                <th className="px-3 py-2">
-                  <input
-                    type="checkbox"
-                    checked={allVisibleSelected}
-                    onChange={(e) => toggleAllVisible(e.target.checked)}
-                    aria-label="Select all visible"
+        <div className="overflow-hidden rounded-2xl border border-slate-200/80 dark:border-white/10">
+          <div className="flex items-center justify-between gap-3 border-b border-slate-100 bg-slate-50/80 px-4 py-2.5 dark:border-white/10 dark:bg-white/[0.03]">
+            <label className="flex items-center gap-2 text-sm text-slate-600 dark:text-zinc-400">
+              <input
+                type="checkbox"
+                className="size-4 accent-brand-600"
+                checked={allVisibleSelected}
+                onChange={(e) => toggleAllVisible(e.target.checked)}
+                aria-label="Select all visible"
+              />
+              Select visible
+            </label>
+            <p className="text-xs text-slate-500 dark:text-zinc-500">
+              <span className="font-medium tabular-nums text-slate-700 dark:text-zinc-300">{rows.length.toLocaleString()}</span>
+              {" of "}
+              {incidents!.length.toLocaleString()} in project {projectId}
+            </p>
+          </div>
+
+          <ul className="divide-y divide-slate-100 dark:divide-white/[0.06]">
+            {rows.map((row) => {
+              const busy = busyId === row.incidentId;
+              const on = selected.has(row.incidentId);
+              const parked = later.has(row.incidentId);
+              const tone = statusTone(row.status, row.open);
+              return (
+                <li
+                  key={row.incidentId}
+                  className={clsx(
+                    "group relative transition-colors",
+                    on ? "bg-brand-50/50 dark:bg-brand-500/[0.08]" : "hover:bg-slate-50/80 dark:hover:bg-white/[0.03]",
+                  )}
+                >
+                  <div
+                    className={clsx(
+                      "absolute top-0 bottom-0 left-0 w-0.5 transition-opacity",
+                      tone === "danger" && "bg-red-500",
+                      tone === "warning" && "bg-amber-500",
+                      tone === "brand" && "bg-brand-500",
+                      tone === "success" && "bg-emerald-500",
+                      tone === "neutral" && "bg-slate-300",
+                      on ? "opacity-100" : "opacity-0 group-hover:opacity-60",
+                    )}
+                    aria-hidden
                   />
-                </th>
-                <th className="px-3 py-2">Id</th>
-                <th className="px-3 py-2">Name</th>
-                <th className="px-3 py-2">Status</th>
-                <th className="px-3 py-2">Severity</th>
-                <th className="px-3 py-2">Priority</th>
-                <th className="px-3 py-2">Detected</th>
-                <th className="px-3 py-2">Created</th>
-                <th className="px-3 py-2">Update in Spira</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100 dark:divide-white/5">
-              {rows.map((row) => {
-                const busy = busyId === row.incidentId;
-                const on = selected.has(row.incidentId);
-                return (
-                  <tr key={row.incidentId} className="align-top">
-                    <td className="px-3 py-2">
+                  <div className="flex gap-3 px-4 py-3.5 sm:gap-4">
+                    <div className="pt-1">
                       <input
                         type="checkbox"
+                        className="size-4 accent-brand-600"
                         checked={on}
-                        onChange={() => {
-                          setSelected((prev) => {
-                            const next = new Set(prev);
-                            if (on) next.delete(row.incidentId);
-                            else next.add(row.incidentId);
-                            return next;
-                          });
-                        }}
+                        onChange={() => toggleSelected(row.incidentId)}
                         aria-label={`Select IN:${row.incidentId}`}
                       />
-                    </td>
-                    <td className="px-3 py-2 tabular-nums whitespace-nowrap">
-                      <SpiraIncidentLink href={incidentUrl(row.incidentId)} incidentId={row.incidentId} />
-                    </td>
-                    <td className="max-w-[18rem] px-3 py-2">
-                      <span className="line-clamp-2">{row.name}</span>
-                    </td>
-                    <td className="px-3 py-2 whitespace-nowrap">
-                      <div className="flex flex-col gap-1">
-                        <Badge tone={row.open ? "warning" : "success"}>{row.status ?? (row.open ? "Open" : "Closed")}</Badge>
-                        {later.has(row.incidentId) && <Badge tone="brand">For later</Badge>}
-                      </div>
-                    </td>
-                    <td className="px-3 py-2 whitespace-nowrap text-slate-600 dark:text-zinc-400">{row.severity ?? "—"}</td>
-                    <td className="px-3 py-2 whitespace-nowrap text-slate-600 dark:text-zinc-400">{row.priority ?? "—"}</td>
-                    <td className="px-3 py-2 whitespace-nowrap text-slate-600 dark:text-zinc-400">{row.detectedRelease ?? "—"}</td>
-                    <td className="px-3 py-2 whitespace-nowrap text-slate-600 dark:text-zinc-400">{formatDateTime(row.createdAt)}</td>
-                    <td className="px-3 py-2">
+                    </div>
+
+                    <div className="min-w-0 flex-1">
                       <div className="flex flex-wrap items-center gap-2">
-                        <select
-                          className="input w-auto min-w-[9rem]"
-                          aria-label={`Status for IN:${row.incidentId}`}
-                          disabled={busy || statuses.length === 0}
-                          value={row.statusId && statuses.some((s) => s.id === row.statusId) ? String(row.statusId) : ""}
-                          onChange={(e) => {
-                            const value = e.target.value;
-                            if (value === FOR_LATER_SELECT) {
-                              markForLater(row.incidentId, true);
-                              return;
-                            }
-                            const id = Number(value);
-                            const status = statuses.find((s) => s.id === id);
-                            if (status) void applyStatus(row, status.id, status.name);
-                          }}
+                        <SpiraIncidentLink href={incidentUrl(row.incidentId)} incidentId={row.incidentId} />
+                        <Badge tone={tone}>{row.status ?? (row.open ? "Open" : "Closed")}</Badge>
+                        {parked && <Badge tone="brand">For later</Badge>}
+                      </div>
+                      <p className="mt-1 text-[15px] leading-snug font-medium text-slate-900 dark:text-zinc-100">{row.name}</p>
+                      <IncidentMeta row={row} />
+                    </div>
+
+                    <div className="flex w-full flex-col items-stretch gap-2 sm:w-auto sm:min-w-[11rem] sm:items-end">
+                      <StatusSelect
+                        row={row}
+                        statuses={statuses}
+                        busy={busy}
+                        later={parked}
+                        onForLater={() => markForLater(row.incidentId, true)}
+                        onStatus={(status) => void applyStatus(row, status.id, status.name)}
+                      />
+                      <div className="flex flex-wrap items-center justify-end gap-1">
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          icon={Bookmark}
+                          className={clsx(parked && "text-brand-700 dark:text-brand-300")}
+                          onClick={() => markForLater(row.incidentId, !parked)}
+                          title={parked ? "Clear For later" : "For later"}
                         >
-                          <option value="" disabled>
-                            {statuses.length ? "Choose status…" : "No statuses"}
-                          </option>
-                          <option value={FOR_LATER_SELECT}>For Later (app only)</option>
-                          {statuses.map((s) => (
-                            <option key={s.id} value={s.id}>
-                              {s.name}
-                              {s.open ? "" : " (closed)"}
-                            </option>
-                          ))}
-                        </select>
-                        <Button size="sm" variant="ghost" icon={Bookmark} onClick={() => markForLater(row.incidentId, !later.has(row.incidentId))}>
-                          {later.has(row.incidentId) ? "Clear For later" : "For later"}
+                          {parked ? "Saved" : "Later"}
                         </Button>
                         {row.open && closedStatus && (
-                          <Button size="sm" variant="ghost" icon={CheckCircle2} busy={busy} disabled={busy} onClick={() => void applyStatus(row, closedStatus.id, closedStatus.name)}>
-                            Mark closed
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            icon={CheckCircle2}
+                            busy={busy}
+                            disabled={busy}
+                            onClick={() => void applyStatus(row, closedStatus.id, closedStatus.name)}
+                          >
+                            Close
                           </Button>
                         )}
                         {!row.open && openStatus && (
-                          <Button size="sm" variant="ghost" icon={LockOpen} busy={busy} disabled={busy} onClick={() => void applyStatus(row, openStatus.id, openStatus.name)}>
-                            Mark open
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            icon={LockOpen}
+                            busy={busy}
+                            disabled={busy}
+                            onClick={() => void applyStatus(row, openStatus.id, openStatus.name)}
+                          >
+                            Reopen
                           </Button>
                         )}
                       </div>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-          <p className="border-t border-slate-100 px-3 py-2 text-xs text-slate-500 dark:border-white/5 dark:text-zinc-500">
-            Showing {rows.length.toLocaleString()} of {incidents!.length.toLocaleString()} incidents in project {projectId}.
-          </p>
+                    </div>
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
         </div>
       )}
     </div>

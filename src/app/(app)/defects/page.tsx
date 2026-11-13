@@ -27,34 +27,39 @@ function DefectsBody() {
         description={
           tab === "log"
             ? "Describe a defect once. Gemini looks for the cases it breaks; you fail them in Spira and link one incident."
-            : "Every incident in this Spira project (SIT, UAT, all releases). Change status in Spira when you have reviewed it."
+            : "Scan every Spira incident in this project, update status, and park items for later."
+        }
+        actions={
+          <div
+            role="tablist"
+            aria-label="Defects"
+            className="inline-flex rounded-xl bg-slate-100 p-1 dark:bg-white/5"
+          >
+            {TABS.map(({ id, label, icon: Icon, hint }) => {
+              const selected = tab === id;
+              return (
+                <button
+                  key={id}
+                  type="button"
+                  role="tab"
+                  aria-selected={selected}
+                  title={hint}
+                  onClick={() => setTab(id)}
+                  className={clsx(
+                    "inline-flex items-center gap-2 rounded-lg px-3.5 py-2 text-sm font-medium transition",
+                    selected
+                      ? "bg-white text-slate-900 shadow-sm dark:bg-zinc-800 dark:text-white"
+                      : "text-slate-600 hover:text-slate-900 dark:text-zinc-400 dark:hover:text-zinc-100",
+                  )}
+                >
+                  <Icon className="size-4" aria-hidden />
+                  {label}
+                </button>
+              );
+            })}
+          </div>
         }
       />
-
-      <div role="tablist" aria-label="Defects" className="flex flex-wrap gap-2">
-        {TABS.map(({ id, label, icon: Icon, hint }) => {
-          const selected = tab === id;
-          return (
-            <button
-              key={id}
-              type="button"
-              role="tab"
-              aria-selected={selected}
-              title={hint}
-              onClick={() => setTab(id)}
-              className={clsx(
-                "inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition",
-                selected
-                  ? "bg-brand-600 text-white shadow-sm dark:bg-brand-500"
-                  : "bg-slate-100 text-slate-700 hover:bg-slate-200 dark:bg-white/5 dark:text-zinc-300 dark:hover:bg-white/10",
-              )}
-            >
-              <Icon className="size-4" aria-hidden />
-              {label}
-            </button>
-          );
-        })}
-      </div>
 
       {tab === "log" ? <DefectWorkspace from={from} embedded /> : <DefectRegister />}
     </div>
