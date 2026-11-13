@@ -45,7 +45,7 @@ export default function LoginPage() {
           <div className="mb-8 flex flex-col items-center text-center lg:items-start lg:text-left">
             <Logo size="lg" />
             <h1 className="mt-6 text-2xl font-semibold tracking-tight">Welcome back</h1>
-            <p className="mt-1.5 text-sm text-slate-600 dark:text-zinc-400">Sign in with the team password to continue.</p>
+            <p className="mt-1.5 text-sm text-slate-600 dark:text-zinc-400">Sign in with your Supabase account email and password.</p>
           </div>
           <Suspense>
             <LoginForm />

@@ -1,9 +1,18 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { SESSION_COOKIE, verifySessionToken } from "@/lib/server/session";
 
-const PUBLIC_PATHS = new Set(["/login", "/api/auth/login", "/api/healthz"]);
+const PUBLIC_PATHS = new Set([
+  "/login",
+  "/signup",
+  "/auth/set-password",
+  "/api/auth/login",
+  "/api/auth/signup",
+  "/api/auth/set-password",
+  "/api/healthz",
+]);
 /** Shared reports: the page checks the link's signature and shows that one report, read-only. */
 const PUBLIC_PREFIX = "/r/";
+
 const MUTATING = new Set(["POST", "PUT", "PATCH", "DELETE"]);
 
 export async function proxy(request: NextRequest) {

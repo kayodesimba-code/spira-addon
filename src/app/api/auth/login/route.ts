@@ -5,6 +5,8 @@ import {
   loginRateLimited,
   passwordMatches,
   recordFailedLogin,
+  supabaseAuthConfigured,
+  verifySupabasePassword,
 } from "@/lib/server/auth";
 import { handler, jsonError, ok, parseBody } from "@/lib/server/http";
 import {
@@ -12,16 +14,20 @@ import {
   createSessionToken,
   SESSION_COOKIE,
   SESSION_TTL_SECONDS,
+  type SessionUser,
 } from "@/lib/server/session";
 
-const schema = z.object({ password: z.string().min(1, "Enter the password.").max(512) });
+const schema = z.object({
+  email: z.string().max(320).optional(),
+  password: z.string().min(1, "Enter the password.").max(512),
+});
 
 export const POST = handler(
   async (request: Request) => {
     if (!authConfigured()) {
       return jsonError(
         503,
-        "Sign-in is not configured. Set APP_PASSWORD and SESSION_SECRET (16+ characters) on the server.",
+        "Sign-in is not configured. Set SESSION_SECRET (16+ characters) and either Supabase Auth (SUPABASE_URL + SUPABASE_ANON_KEY) or APP_PASSWORD.",
       );
     }
     const headerList = await headers();
@@ -30,21 +36,43 @@ export const POST = handler(
     if (loginRateLimited(clientKey)) {
       return jsonError(429, "Too many attempts. Wait 15 minutes and try again.");
     }
-    const { password } = await parseBody(request, schema);
-    if (!passwordMatches(password)) {
-      recordFailedLogin(clientKey);
-      return jsonError(401, "That password is not correct.");
+    const body = await parseBody(request, schema);
+    const email = body.email?.trim() || "";
+    const password = body.password;
+    if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      return jsonError(400, "Enter a valid email.");
     }
+
+    let user: SessionUser | null = null;
+    try {
+      if (email && supabaseAuthConfigured()) {
+        user = await verifySupabasePassword(email, password);
+      } else if (!email && process.env.APP_PASSWORD && passwordMatches(password)) {
+        // Legacy team password / smoke scripts (no email).
+        user = { sub: "admin", email: null, role: "admin" };
+      } else if (email && !supabaseAuthConfigured() && process.env.APP_PASSWORD && passwordMatches(password)) {
+        user = { sub: "admin", email, role: "admin" };
+      }
+    } catch (error) {
+      recordFailedLogin(clientKey);
+      return jsonError(502, error instanceof Error ? error.message : "Sign-in could not reach Supabase Auth.");
+    }
+
+    if (!user) {
+      recordFailedLogin(clientKey);
+      return jsonError(401, email ? "That email or password is not correct." : "That password is not correct.");
+    }
+
     clearFailedLogins(clientKey);
     const store = await cookies();
-    store.set(SESSION_COOKIE, await createSessionToken(), {
+    store.set(SESSION_COOKIE, await createSessionToken(user), {
       httpOnly: true,
       sameSite: "lax",
       secure: process.env.NODE_ENV === "production",
       path: "/",
       maxAge: SESSION_TTL_SECONDS,
     });
-    return ok({ ok: true });
+    return ok({ ok: true, email: user.email });
   },
   { public: true },
 );

@@ -196,4 +196,14 @@ describe("session tokens", () => {
     expect(await verifySessionToken(token)).toBe(false);
     expect(await verifySessionToken("garbage")).toBe(false);
   });
+
+  it("accepts Supabase user subjects in the session JWT", async () => {
+    process.env.SESSION_SECRET = "a".repeat(32);
+    const token = await createSessionToken({
+      sub: "11111111-2222-3333-4444-555555555555",
+      email: "qa@example.com",
+      role: "admin",
+    });
+    expect(await verifySessionToken(token)).toBe(true);
+  });
 });

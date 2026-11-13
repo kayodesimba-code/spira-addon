@@ -11,8 +11,10 @@ Built with Next.js (App Router), TypeScript, React and Tailwind CSS.
 
    | Name | Purpose |
    | --- | --- |
-   | `APP_PASSWORD` | Team password for the sign-in page |
-   | `SESSION_SECRET` | At least 16 characters; signs the session cookie and comparisons |
+   | `SESSION_SECRET` | Signs cookies (16+ characters). Keep this even with Supabase Auth. |
+   | `SUPABASE_URL` / `SUPABASE_ANON_KEY` | Supabase Auth sign-in (email/password). Create users in Authentication → Users; disable public sign-ups. |
+   | `SUPABASE_SERVICE_ROLE_KEY` | Shared storage (server only). Run `supabase/schema.sql` first. |
+   | `APP_PASSWORD` | Optional legacy team password / smoke-script fallback when no email is sent |
    | `SPIRA_BASE_URL` | Spira site URL, e.g. `https://yourcompany.spiraservice.net` |
    | `SPIRA_USERNAME` | Spira user the server acts as |
    | `SPIRA_API_KEY` | That user's API key (RSS token), including the `{ }` braces |
@@ -20,7 +22,7 @@ Built with Next.js (App Router), TypeScript, React and Tailwind CSS.
    | `GEMINI_MODEL` | Optional. Gemini model for both; defaults to `gemini-3.8-flash` |
    | `GEMINI_FALLBACK_MODEL` | Optional. Models asked in turn when the main one is busy, fails or is slow (comma-separated, up to 3); defaults to `gemini-3.6-flash,gemini-3.5-flash-lite`, `off` turns them off |
 
-   Sign-in is disabled until `APP_PASSWORD` and `SESSION_SECRET` are set. Comparisons are disabled until all three Spira values are set. Every browser starts with the team's setup, so nothing has to be chosen after signing in: Project-Simba (PR:24), SIT Phase 1 release 1.0.0.0002 - Sprint3 (RL:157) and the total test plan release 1.0.0.0001 - Sprint2 (RL:156). They are `TEAM_DEFAULTS` / `CYCLE_PRESETS` in `src/lib/domain/settings.ts`. **Settings → Testing cycle** flips **SIT** ↔ **UAT** in one click (UAT resolves Spira build `1.0.0.0.0004` by version, folder UAT - Phase 1); existing drafts keep the release they were created with. On **Compare**, choose a module and the project's test sets are read from Spira, with those whose name starts with the module (for example `Onboarding-Android`, `Customer Onboarding & Home Screen- Android`) ticked. On Compare the release only labels drafts; module-to-test-set mappings in Settings are optional overrides.
+   Sign-in uses Supabase Auth email/password when `SUPABASE_URL` and `SUPABASE_ANON_KEY` are set (with `SESSION_SECRET`). `APP_PASSWORD` remains an optional fallback for scripts. Comparisons are disabled until all three Spira values are set. Every browser starts with the team's setup, so nothing has to be chosen after signing in: Project-Simba (PR:24), SIT Phase 1 release 1.0.0.0002 - Sprint3 (RL:157) and the total test plan release 1.0.0.0001 - Sprint2 (RL:156). They are `TEAM_DEFAULTS` / `CYCLE_PRESETS` in `src/lib/domain/settings.ts`. **Settings → Testing cycle** flips **SIT** ↔ **UAT** in one click (UAT resolves Spira build `1.0.0.0.0004` by version, folder UAT - Phase 1); existing drafts keep the release they were created with. On **Compare**, choose a module and the project's test sets are read from Spira, with those whose name starts with the module (for example `Onboarding-Android`, `Customer Onboarding & Home Screen- Android`) ticked. On Compare the release only labels drafts; module-to-test-set mappings in Settings are optional overrides.
 
    **Whole workbook** (on Compare, once a workbook with several modules is read) compares every module at once. For each module it lists the test sets Compare would pick (those mapped in Settings, else the release's), and whether each is already on a completed draft, on a draft still in review, or on none. Only test sets on no draft are compared, so completed modules keep their boards and executions; modules with nothing done are ticked, and a module done on one platform only is left unticked (pushing from Completed copies its board and results). Each module gets its own draft, compared one after another, and goes to Completed straight away when nothing has to change; the rest are reviewed and applied as usual. iOS and Android test sets in the release whose module is not in the workbook are listed, since they still count in the report. Comparing only reads Spira.
 
@@ -219,7 +221,7 @@ The server holds no other state. It signs every comparison and passing membershi
 
 ## Deploying to Vercel
 
-Set `APP_PASSWORD`, `SESSION_SECRET`, `SPIRA_BASE_URL`, `SPIRA_USERNAME` and `SPIRA_API_KEY` (and optionally `GEMINI_API_KEY`, `GEMINI_MODEL`, `GEMINI_FALLBACK_MODEL`, `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY`) under **Settings → Environment Variables** (`.env.local` is not deployed), then redeploy. If your Spira instance restricts access by IP address, it must allow Vercel's outbound traffic.
+Set `SESSION_SECRET`, `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, `SPIRA_BASE_URL`, `SPIRA_USERNAME` and `SPIRA_API_KEY` (and optionally `APP_PASSWORD`, `GEMINI_API_KEY`, `GEMINI_MODEL`, `GEMINI_FALLBACK_MODEL`) under **Settings → Environment Variables** (`.env.local` is not deployed), then redeploy. Create each teammate in Supabase → Authentication → Users. If your Spira instance restricts access by IP address, it must allow Vercel's outbound traffic.
 
 ## Scripts
 
