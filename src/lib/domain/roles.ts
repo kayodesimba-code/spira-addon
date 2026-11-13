@@ -1,4 +1,4 @@
-/** App roles. Superadmins see Settings, Activity, and connection status in the sidebar. */
+/** App roles. Superadmins see Prod Testing, Settings, Activity, and connection status in the sidebar. */
 
 export type AppRole = "superadmin" | "member";
 

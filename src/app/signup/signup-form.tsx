@@ -30,18 +30,27 @@ export function SignupForm() {
   };
 
   return (
-    <form onSubmit={submit} className="surface flex flex-col gap-4 p-6">
-      {error && <Notice tone="danger">{error}</Notice>}
-      {sent && <Notice tone="success">{sent}</Notice>}
+    <form onSubmit={submit} className="surface flex w-full min-w-0 flex-col gap-4 p-4 sm:p-6">
+      {error && (
+        <Notice tone="danger" title="Could not send link">
+          {error}
+        </Notice>
+      )}
+      {sent && (
+        <Notice tone="success" title="Check your email">
+          {sent}
+        </Notice>
+      )}
       <Field label="Work email">
         {(props) => (
           <input
             {...props}
             type="email"
+            inputMode="email"
             autoComplete="email"
             autoFocus
             required
-            className="input"
+            className="input w-full"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             disabled={Boolean(sent)}
@@ -49,7 +58,7 @@ export function SignupForm() {
         )}
       </Field>
       {!sent && (
-        <Button type="submit" variant="primary" busy={busy} disabled={!email.trim()} icon={Mail}>
+        <Button type="submit" variant="primary" className="w-full" busy={busy} disabled={!email.trim()} icon={Mail}>
           Send verification link
         </Button>
       )}

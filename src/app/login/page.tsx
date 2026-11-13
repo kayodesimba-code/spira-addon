@@ -40,12 +40,12 @@ export default function LoginPage() {
         </div>
       </section>
 
-      <section className="grid place-items-center px-4 py-12">
-        <div className="w-full max-w-sm animate-fade-up">
-          <div className="mb-8 flex flex-col items-center text-center lg:items-start lg:text-left">
+      <section className="flex items-center justify-center px-4 py-8 sm:px-6 sm:py-12">
+        <div className="w-full max-w-sm min-w-0 animate-fade-up">
+          <div className="mb-6 flex flex-col items-center px-1 text-center sm:mb-8 lg:items-start lg:text-left">
             <Logo size="lg" />
-            <h1 className="mt-6 text-2xl font-semibold tracking-tight">Welcome back</h1>
-            <p className="mt-1.5 text-sm text-slate-600 dark:text-zinc-400">Sign in with your Supabase account email and password.</p>
+            <h1 className="mt-5 text-xl font-semibold tracking-tight text-balance sm:mt-6 sm:text-2xl">Welcome back</h1>
+            <p className="mt-1.5 text-sm text-pretty text-slate-600 dark:text-zinc-400">Sign in with your account email and password.</p>
           </div>
           <Suspense>
             <LoginForm />

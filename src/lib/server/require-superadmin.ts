@@ -3,7 +3,7 @@ import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { SESSION_COOKIE, readSessionUser } from "./session";
 
-/** Redirect non-superadmins away from Settings / Activity. */
+/** Redirect non-superadmins away from Settings / Activity / Prod Testing. */
 export async function requireSuperadmin(fallback = "/sit-build"): Promise<void> {
   const store = await cookies();
   const user = await readSessionUser(store.get(SESSION_COOKIE)?.value);

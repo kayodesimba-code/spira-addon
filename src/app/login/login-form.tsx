@@ -48,17 +48,22 @@ export function LoginForm() {
   };
 
   return (
-    <form onSubmit={submit} className="surface flex flex-col gap-4 p-6">
-      {error && <Notice tone="danger">{error}</Notice>}
+    <form onSubmit={submit} className="surface flex w-full min-w-0 flex-col gap-4 p-4 sm:p-6">
+      {error && (
+        <Notice tone="danger" title="Could not sign in">
+          {error}
+        </Notice>
+      )}
       <Field label="Email">
         {(props) => (
           <input
             {...props}
             type="email"
+            inputMode="email"
             autoComplete="username"
             autoFocus
             required
-            className="input"
+            className="input w-full"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
           />
@@ -71,16 +76,16 @@ export function LoginForm() {
             type="password"
             autoComplete="current-password"
             required
-            className="input"
+            className="input w-full"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
           />
         )}
       </Field>
-      <Button type="submit" variant="primary" busy={busy} disabled={!email.trim() || !password} icon={LogIn}>
+      <Button type="submit" variant="primary" className="w-full" busy={busy} disabled={!email.trim() || !password} icon={LogIn}>
         Sign in
       </Button>
-      <p className="text-center text-sm text-slate-600 dark:text-zinc-400">
+      <p className="text-center text-sm text-pretty text-slate-600 dark:text-zinc-400">
         New here?{" "}
         <Link href="/signup" className="font-medium text-slate-900 underline-offset-2 hover:underline dark:text-white">
           Create an account

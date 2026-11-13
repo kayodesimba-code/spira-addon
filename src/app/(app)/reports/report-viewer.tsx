@@ -1,33 +1,28 @@
 "use client";
 
-import { Download, FileSpreadsheet, Link2, X } from "lucide-react";
+import { Download, Link2, X } from "lucide-react";
 import { useEffect, useId, useRef } from "react";
 import { Button } from "@/components/ui";
-import type { MatrixCoverage } from "@/lib/domain/matrix";
 import type { Report } from "@/lib/domain/report";
 import { ReportDocument, type ReportChanges } from "./report-document";
 import { usePdfDownload } from "./use-pdf-download";
 
 const readAt = (iso: string) => new Date(iso).toLocaleString("en-GB", { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" });
 
-/** The generated report over the page, with the PDF, share and Excel downloads. */
+/** The generated report over the page, with PDF download and share link. */
 export function ReportViewer({
   report,
   changes,
   siteUrl,
-  matrixCoverage,
   fileName,
   onShare,
-  onExcel,
   onClose,
 }: {
   report: Report;
   changes: ReportChanges | null;
   siteUrl: string | null;
-  matrixCoverage?: MatrixCoverage | null;
   fileName: string;
   onShare: () => void;
-  onExcel: () => void;
   onClose: () => void;
 }) {
   const titleId = useId();
@@ -74,16 +69,13 @@ export function ReportViewer({
         <Button size="sm" icon={Link2} onClick={onShare}>
           Share link
         </Button>
-        <Button size="sm" icon={FileSpreadsheet} onClick={onExcel}>
-          Excel
-        </Button>
         <Button ref={closeRef} size="sm" variant="ghost" icon={X} onClick={onClose}>
           Close
         </Button>
       </div>
       <div className="flex-1 overflow-y-auto px-3 py-6 sm:px-8 print:overflow-visible print:p-0">
         <div ref={pagesRef} className="mx-auto max-w-[1280px]">
-          <ReportDocument report={report} changes={changes} siteUrl={siteUrl} matrixCoverage={matrixCoverage} />
+          <ReportDocument report={report} changes={changes} siteUrl={siteUrl} />
         </div>
       </div>
     </div>

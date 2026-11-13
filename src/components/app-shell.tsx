@@ -36,7 +36,7 @@ import { useSettings } from "./settings-context";
 const NAV: Array<{ href: string; label: string; icon: LucideIcon; match: (p: string) => boolean; superadmin?: boolean }> = [
   { href: "/sit-build", label: "SIT build", icon: ClipboardList, match: (p) => p.startsWith("/sit-build") },
   { href: "/uat-build", label: "UAT build", icon: ClipboardList, match: (p) => p.startsWith("/uat-build") || p.startsWith("/week") },
-  { href: "/matrix", label: "Prod Testing", icon: Grid3x3, match: (p) => p.startsWith("/matrix") },
+  { href: "/matrix", label: "Prod Testing", icon: Grid3x3, match: (p) => p.startsWith("/matrix"), superadmin: true },
   { href: "/defects", label: "Defects", icon: Bug, match: (p) => p.startsWith("/defects") },
   { href: "/reports", label: "Reports", icon: FileChartColumn, match: (p) => p.startsWith("/reports") },
   { href: "/activity", label: "Activity", icon: Activity, match: (p) => p.startsWith("/activity"), superadmin: true },

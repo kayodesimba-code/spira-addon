@@ -148,9 +148,9 @@ export function Notice({
     >
       <div className="flex min-w-0 flex-1 gap-3">
         <Icon className={clsx("mt-0.5 size-4 shrink-0", style.iconClass)} aria-hidden />
-        <div className="min-w-0 flex-1">
+        <div className="min-w-0 flex-1 break-words">
           {title && <p className="font-semibold">{title}</p>}
-          {children && <div className={clsx(title && "mt-0.5", "opacity-90")}>{children}</div>}
+          {children && <div className={clsx(title && "mt-0.5", "text-pretty opacity-90")}>{children}</div>}
         </div>
       </div>
       {action && <div className="shrink-0">{action}</div>}

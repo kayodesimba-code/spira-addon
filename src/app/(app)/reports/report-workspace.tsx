@@ -10,8 +10,8 @@ import { errorMessage } from "@/lib/client/api";
 import { downloadEnvironmentTestcaseWorkbook, downloadScopeTestCases } from "@/lib/client/case-export";
 import { listBuckets } from "@/lib/client/defect-buckets";
 import { listDefects } from "@/lib/client/defects";
-import { loadMatrixStore, matrixCoverageFor } from "@/lib/client/matrix";
-import { exportReportWorkbook, loadCatalog, loadReportOptions, readReportData, recordSnapshot, saveReportOptions, type ReportProgress } from "@/lib/client/report";
+import { loadMatrixStore } from "@/lib/client/matrix";
+import { loadCatalog, loadReportOptions, readReportData, recordSnapshot, saveReportOptions, type ReportProgress } from "@/lib/client/report";
 import { saveSettings } from "@/lib/client/settings-store";
 import { buildMatrixReport, type MatrixReport } from "@/lib/domain/matrix-report";
 import {
@@ -528,7 +528,7 @@ export function ReportWorkspace({ share }: { share: string | null }) {
             </>
           }
           title="Executive test report"
-          description="SIT and UAT packs from live Spira runs — generate the boardroom PDF/Excel, or download the full testcase workbook (Master + modules + status)."
+          description="SIT and UAT packs from live Spira runs — generate the boardroom PDF, or download the full testcase workbook (Master + modules + status)."
           actions={
             reportEnv ? (
               <Badge tone="brand">
@@ -695,8 +695,8 @@ export function ReportWorkspace({ share }: { share: string | null }) {
             </div>
             <p className="mt-2 text-xs text-slate-500 dark:text-zinc-400">
               {isMatrix
-                ? "Prod Testing report uses device × network results (same executive template: status, KPIs, board, PDF/Excel). Load cases and execute sessions in Prod Testing first."
-                : "Generate opens the executive viewer (PDF / Excel / share). SIT and UAT workbooks are multi-sheet packs from Spira — no step text."}
+                ? "Prod Testing report uses device × network results (same executive template: status, KPIs, board, PDF). Load cases and execute sessions in Prod Testing first."
+                : "Generate opens the executive viewer (PDF / share). SIT and UAT workbooks are multi-sheet packs from Spira — no step text."}
             </p>
             {scopeChanged && !busy && (
               <Notice tone="info" className="mt-4">
@@ -778,14 +778,8 @@ export function ReportWorkspace({ share }: { share: string | null }) {
           report={report}
           changes={data?.changes ?? null}
           siteUrl={spira?.siteUrl ?? null}
-          matrixCoverage={
-            settings?.projectId != null
-              ? matrixCoverageFor(settings.projectId, options?.scoped.releaseId ?? settings.releaseId)
-              : null
-          }
           fileName={fileName}
           onShare={() => setShareOpen(true)}
-          onExcel={() => void exportReportWorkbook(report, spira?.siteUrl ?? null)}
           onClose={closeViewer}
         />
       )}

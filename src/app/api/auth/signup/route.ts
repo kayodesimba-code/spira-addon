@@ -50,7 +50,9 @@ export const POST = handler(
       }
     } catch (error) {
       recordFailedLogin(clientKey);
-      return jsonError(502, error instanceof Error ? error.message : "Could not send the verification email.");
+      const message = error instanceof Error ? error.message : "Could not send the verification email.";
+      const rateLimited = /too many emails|rate limit/i.test(message);
+      return jsonError(rateLimited ? 429 : 502, message);
     }
     clearFailedLogins(clientKey);
     return ok({

@@ -19,22 +19,7 @@ import {
   type Report,
   type RetestState,
 } from "@/lib/domain/report";
-import { MATRIX_DEVICES, MATRIX_NETWORKS, type MatrixCoverage, type MatrixCellStatus } from "@/lib/domain/matrix";
 import { Donut, OUTCOME_COLOR, OutcomeBar, OutcomeLegend, TargetBar, TrendChart } from "./charts";
-
-const MATRIX_CELL_COLOR: Record<MatrixCellStatus, string> = {
-  notStarted: "#94a3b8",
-  inProgress: "#4f46e5",
-  covered: "#16a34a",
-  failed: "#dc2626",
-};
-
-const MATRIX_CELL_LABEL: Record<MatrixCellStatus, string> = {
-  notStarted: "Not started",
-  inProgress: "In progress",
-  covered: "Covered",
-  failed: "Failed",
-};
 
 const RAG: Record<RagStatus, { label: string; dot: string; pill: string }> = {
   green: {
@@ -1287,54 +1272,14 @@ function PlannedScopePage({ report }: { report: Report }) {
   );
 }
 
-function MatrixCoveragePage({ coverage }: { coverage: MatrixCoverage }) {
-  return (
-    <>
-      <Heading note="App-owned device × network execution (Prod Testing). Spira still holds iOS/Android module depth; this board shows OEM and carrier coverage without duplicating test sets.">
-        Device × network coverage
-      </Heading>
-      <p className="mb-3 text-[12.5px] text-slate-600">
-        {coverage.releaseLabel || "Current release"} · {coverage.coveredCells} covered · {coverage.executedCells} started ·{" "}
-        {coverage.failedCells} with failures · {coverage.totalCells} cells (iOS, itel, Infinix, Samsung, tecno × MTN, Airtel, Glo)
-      </p>
-      <Table head={["Device", ...MATRIX_NETWORKS]} numeric={[]}>
-        {MATRIX_DEVICES.map((device) => (
-          <tr key={device}>
-            <td className={`${td} font-medium`}>{device}</td>
-            {MATRIX_NETWORKS.map((network) => {
-              const cell = coverage.cells.find((c) => c.device === device && c.network === network)!;
-              return (
-                <td key={network} className={td}>
-                  <div className="flex flex-col gap-0.5">
-                    <Pill color={MATRIX_CELL_COLOR[cell.status]}>{MATRIX_CELL_LABEL[cell.status]}</Pill>
-                    <span className="text-[11px] text-slate-500 tabular-nums">
-                      {cell.executed}/{cell.planned || "—"}
-                      {cell.failed ? ` · ${cell.failed} failed` : ""}
-                    </span>
-                  </div>
-                </td>
-              );
-            })}
-          </tr>
-        ))}
-      </Table>
-      <p className="mt-3 text-[11.5px] text-slate-500">
-        Execute sessions from Prod Testing. Smoke packs target login, OTP, transfers, airtime/data, bills and onboarding on each cell.
-      </p>
-    </>
-  );
-}
-
 export function ReportDocument({
   report,
   changes,
   siteUrl,
-  matrixCoverage,
 }: {
   report: Report;
   changes: ReportChanges | null;
   siteUrl: string | null;
-  matrixCoverage?: MatrixCoverage | null;
 }) {
   const pages =
     report.kind === "planned"
@@ -1343,7 +1288,6 @@ export function ReportDocument({
           <SummaryPage key="summary" report={report} />,
           <ReadinessPage key="readiness" report={report} />,
           <ModulesPage key="modules" report={report} changes={changes} />,
-          ...(matrixCoverage ? [<MatrixCoveragePage key="matrix" coverage={matrixCoverage} />] : []),
           <DefectsPage key="defects" report={report} siteUrl={siteUrl} />,
           ...(report.appendix ? [<AppendixPage key="appendix" report={report} siteUrl={siteUrl} />] : []),
         ];

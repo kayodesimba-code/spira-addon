@@ -47,10 +47,14 @@ export function SetPasswordForm() {
   };
 
   return (
-    <form onSubmit={submit} className="surface flex flex-col gap-4 p-6">
-      {error && <Notice tone="danger">{error}</Notice>}
+    <form onSubmit={submit} className="surface flex w-full min-w-0 flex-col gap-4 p-4 sm:p-6">
+      {error && (
+        <Notice tone="danger" title="Could not continue">
+          {error}
+        </Notice>
+      )}
       {!accessToken && (
-        <p className="text-center text-sm text-slate-600 dark:text-zinc-400">
+        <p className="text-center text-sm text-pretty text-slate-600 dark:text-zinc-400">
           <Link href="/signup" className="font-medium text-slate-900 underline-offset-2 hover:underline dark:text-white">
             Request a new link
           </Link>
@@ -65,7 +69,7 @@ export function SetPasswordForm() {
             autoFocus
             required
             minLength={8}
-            className="input"
+            className="input w-full"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             disabled={!accessToken}
@@ -80,7 +84,7 @@ export function SetPasswordForm() {
             autoComplete="new-password"
             required
             minLength={8}
-            className="input"
+            className="input w-full"
             value={confirm}
             onChange={(e) => setConfirm(e.target.value)}
             disabled={!accessToken}
@@ -90,6 +94,7 @@ export function SetPasswordForm() {
       <Button
         type="submit"
         variant="primary"
+        className="w-full"
         busy={busy}
         disabled={!accessToken || password.length < 8 || password !== confirm}
         icon={KeyRound}

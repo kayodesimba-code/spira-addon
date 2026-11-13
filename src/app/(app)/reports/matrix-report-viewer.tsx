@@ -1,9 +1,8 @@
 "use client";
 
-import { Download, FileSpreadsheet, X } from "lucide-react";
+import { Download, X } from "lucide-react";
 import { useEffect, useId, useRef } from "react";
 import { Button } from "@/components/ui";
-import { exportMatrixReportWorkbook } from "@/lib/client/matrix-report-excel";
 import { matrixReportFileName, type MatrixReport } from "@/lib/domain/matrix-report";
 import { MatrixReportDocument } from "./matrix-report-document";
 import { usePdfDownload } from "./use-pdf-download";
@@ -11,7 +10,7 @@ import { usePdfDownload } from "./use-pdf-download";
 const readAt = (iso: string) =>
   new Date(iso).toLocaleString("en-GB", { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" });
 
-/** Same shell as the Spira executive report viewer: PDF + Excel + close. */
+/** Same shell as the Spira executive report viewer: PDF + close. */
 export function MatrixReportViewer({ report, onClose }: { report: MatrixReport; onClose: () => void }) {
   const titleId = useId();
   const closeRef = useRef<HTMLButtonElement>(null);
@@ -51,9 +50,6 @@ export function MatrixReportViewer({ report, onClose }: { report: MatrixReport; 
         </div>
         <Button size="sm" variant="primary" icon={Download} busy={pdf.busy} onClick={pdf.download}>
           {pdf.busy ? "Preparing PDF…" : "Download PDF"}
-        </Button>
-        <Button size="sm" icon={FileSpreadsheet} onClick={() => void exportMatrixReportWorkbook(report)}>
-          Excel
         </Button>
         <Button ref={closeRef} size="sm" variant="ghost" icon={X} onClick={onClose}>
           Close

@@ -44,6 +44,34 @@ async function authFetch(
   });
 }
 
+/** Map Supabase Auth HTTP failures to short messages safe to show in the UI. */
+function authUserMessage(
+  kind: "invite" | "recover" | "signin" | "password",
+  status: number,
+  detail: string,
+): string {
+  const text = detail.toLowerCase();
+  if (status === 429 || /rate.?limit|over_email_send_rate_limit|email rate limit/.test(text)) {
+    return "Too many emails were sent just now. Wait a few minutes, then try again.";
+  }
+  if (status === 422 && /invalid.?email|email.?address/.test(text)) {
+    return "That email address does not look valid.";
+  }
+  if (kind === "signin") {
+    if (status >= 500) return "Sign-in is temporarily unavailable. Try again in a moment.";
+    return "Could not sign in. Check your email and password, then try again.";
+  }
+  if (kind === "password") {
+    if (/weak|short|least|characters/.test(text)) return "Choose a stronger password (at least 8 characters).";
+    return "Could not save your password. Request a new link and try again.";
+  }
+  if (kind === "invite" || kind === "recover") {
+    if (status >= 500) return "Email sending is temporarily unavailable. Try again in a moment.";
+    return "We could not send the verification email. Try again in a few minutes.";
+  }
+  return "Something went wrong. Try again.";
+}
+
 /**
  * Verify email/password with Supabase Auth (password grant). Server-only; the browser never talks to Supabase.
  * Returns a session user on success, or null when credentials are wrong. Throws on misconfiguration / upstream errors.
@@ -59,7 +87,7 @@ export async function verifySupabasePassword(email: string, password: string): P
   if (response.status === 400 || response.status === 401) return null;
   if (!response.ok) {
     const detail = await response.text().catch(() => "");
-    throw new Error(`Supabase Auth refused sign-in (HTTP ${response.status})${detail ? `: ${detail.slice(0, 200)}` : ""}`);
+    throw new Error(authUserMessage("signin", response.status, detail));
   }
   const raw = (await response.json()) as { user?: { id?: string; email?: string | null } };
   const id = raw.user?.id?.trim();
@@ -83,7 +111,7 @@ export async function inviteSupabaseUser(email: string, redirectTo: string): Pro
   if (response.status === 422 || /already|registered|exists/i.test(detail)) {
     return { ok: false, reason: "exists" };
   }
-  throw new Error(`Supabase could not send the invite (HTTP ${response.status})${detail ? `: ${detail.slice(0, 200)}` : ""}`);
+  throw new Error(authUserMessage("invite", response.status, detail));
 }
 
 /** Password-recovery email that lands on redirectTo so the user can create / reset their password. */
@@ -97,7 +125,7 @@ export async function sendPasswordSetupEmail(email: string, redirectTo: string):
   });
   if (!response.ok) {
     const detail = await response.text().catch(() => "");
-    throw new Error(`Supabase could not send the password link (HTTP ${response.status})${detail ? `: ${detail.slice(0, 200)}` : ""}`);
+    throw new Error(authUserMessage("recover", response.status, detail));
   }
 }
 
@@ -114,7 +142,7 @@ export async function setSupabasePasswordWithToken(accessToken: string, password
   if (response.status === 401 || response.status === 403) return null;
   if (!response.ok) {
     const detail = await response.text().catch(() => "");
-    throw new Error(`Supabase could not set the password (HTTP ${response.status})${detail ? `: ${detail.slice(0, 200)}` : ""}`);
+    throw new Error(authUserMessage("password", response.status, detail));
   }
   const raw = (await response.json()) as { id?: string; email?: string | null };
   const id = raw.id?.trim();
